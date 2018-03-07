@@ -9,15 +9,16 @@ import (
 
 	"github.com/berryhill/mine-daemon/services"
 
-	"github.com/berryhill/websocket"
+	"github.com/gorilla/websocket"
 )
 
-var addr = flag.String("addr", "localhost:8080", "http service address")
+var Addr = flag.String(
+	"addr", "localhost:8080", "http service address")
 var id = "1234"
 
 func main () {
 
-	u := url.URL{Scheme: "ws", Host: *addr, Path: "/echo"}
+	u := url.URL{Scheme: "ws", Host: *Addr, Path: "/echo"}
 	log.Printf("connecting to %s", u.String())
 	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	if err != nil {
@@ -27,10 +28,12 @@ func main () {
 
 	t := time.NewTicker(time.Second)
 	defer t.Stop()
-	go services.StartPing(c, t, id)
 
+	hub := services.NewHub(c)
+	hub.Run()
+	go services.StartPing(hub, t, id)
 	go services.StartLogs()
 
 	fmt.Println("Up and running")
-	for {}
+	for { /* do nothing */ }
 }
