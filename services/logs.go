@@ -3,6 +3,7 @@ package services
 import (
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/hpcloud/tail"
 )
@@ -21,13 +22,21 @@ func StartLogs() {
 }
 
 func readLog(t *tail.Tail, logs chan string) {
+
 	for line := range t.Lines {
 		logs<- line.Text
 	}
 }
 
 func handleLog(logs chan string) {
+
 	for log := range logs {
 		fmt.Println(log)
+		strArray := strings.Split(<-logs, " ")
+		if strArray[0] == "ETH" {
+
+		} else if strArray[0] == "ETH:" {
+
+		}
 	}
 }
