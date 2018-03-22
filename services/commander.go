@@ -1,18 +1,19 @@
 package services
 
 import (
-	//"log"
 	"fmt"
-	"github.com/Shopify/sarama"
+	"log"
 	"os"
 	"os/signal"
+
+	"github.com/Shopify/sarama"
 )
 
 type Command struct {
 	Action 		string		`json:"name"`
 }
 
-func StartCommander(brokers []string) {
+func StartCommander(brokers []string, id string) {
 
 	config := sarama.NewConfig()
 	config.Consumer.Return.Errors = true
@@ -29,7 +30,6 @@ func StartCommander(brokers []string) {
 	}()
 
 	topic := "commands"
-	// How to decide partition, is it fixed value...?
 	consumer, err := master.ConsumePartition(
 		topic, 0, sarama.OffsetNewest)
 	if err != nil {
@@ -39,17 +39,18 @@ func StartCommander(brokers []string) {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt)
 
-	// Count how many message processed
 	msgCount := 0
 
-	// Get signnal for finish
 	doneCh := make(chan struct{})
 	go func() {
 		for {
 			select {
 			case err := <-consumer.Errors():
-				fmt.Println(err)
+				log.Printf("Error parsing kafka message", err)
 			case msg := <-consumer.Messages():
+				if string(msg.Value) != id {
+					break
+				}
 				msgCount++
 				fmt.Println(string(msg.Key), string(msg.Value))
 			case <-signals:

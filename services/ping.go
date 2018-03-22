@@ -2,13 +2,10 @@ package services
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
-	"os"
-	"os/signal"
 	"time"
 
-	"github.com/Shopify/sarama"
+	"github.com/streadway/amqp"
 )
 
 type Ping struct {
@@ -23,56 +20,43 @@ func NewPing() *Ping {
 	return p
 }
 
-func StartPing(brokers []string, id string) {
-
-	config := sarama.NewConfig()
-	config.Producer.Retry.Max = 5
-	config.Producer.RequiredAcks = sarama.WaitForAll
-	producer, err := sarama.NewAsyncProducer(brokers, config)
-	if err != nil {
-		panic(err)
-	}
-
-	defer func() {
-		if err := producer.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, os.Interrupt)
-
-	var enqueued, errors int
-	doneCh := make(chan struct{})
+func StartPing(url, id string) {
 
 	go func() {
+		conn, err := amqp.Dial(url)
+		failOnError(err, "Failed to connect to RabbitMQ")
+		defer conn.Close()
+
+		ch, err := conn.Channel()
+		failOnError(err, "Failed to open a channel")
+		defer ch.Close()
+
+		q, err := ch.QueueDeclare(
+			"ping",
+			false,
+			false,
+			false,
+			false,
+			nil,
+		)
+		failOnError(err, "Failed to declare a queue")
+
 		for {
-
-			time.Sleep(4 * time.Second)
-
 			ping := NewPing()
-			pingPayload, err := json.Marshal(ping)
-			if err != nil {
-				log.Printf("Error marshalling json", err)
-			}
-
-			msg := &sarama.ProducerMessage{
-				Topic: "ping",
-				Key:   sarama.ByteEncoder(id),
-				Value: sarama.ByteEncoder(pingPayload),
-			}
-			select {
-			case producer.Input() <- msg:
-				enqueued++
-			case err := <-producer.Errors():
-				errors++
-				fmt.Println("Failed to produce message:", err)
-			case <-signals:
-				doneCh <- struct{}{}
-			}
+			message := NewMessage(id, "ping", ping)
+			body, _ := json.Marshal(message)
+			err = ch.Publish(
+				"",
+				q.Name,
+				false,
+				false,
+				amqp.Publishing{
+					ContentType: "text/plain",
+					Body:        []byte(body),
+				})
+			log.Printf(" [x] Sent %s", body)
+			failOnError(err, "Failed to publish a message")
+			time.Sleep(time.Second * 2)
 		}
 	}()
-
-	<-doneCh
-	log.Printf("Enqueued: %d; errors: %d\n", enqueued, errors)
 }

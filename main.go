@@ -9,19 +9,28 @@ import (
 	"github.com/berryhill/mine-daemon/services"
 )
 
-var Addr = flag.String(
-	"addr", "localhost:5050", "http service address")
-var id = "100"
+var addr = flag.String(
+	"addr",
+	"amqp://guest:guest@localhost:5672/",
+	"http service address",
+	)
+
+var id = "1"
 
 func main () {
 
-	brokers := []string{"35.193.166.194:9092"}
-	go services.StartPing(brokers, id)
+	flag.Parse()
+
+	fmt.Println(*addr)
+
+	services.StartPing(*addr, id)
+	services.StartLogs()
 
 	fmt.Println("Up and running")
 
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt)
+
 	doneCh := make(chan struct{})
 	go func() {
 		select {

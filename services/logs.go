@@ -1,42 +1,63 @@
 package services
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
-	"strings"
 
 	"github.com/hpcloud/tail"
+	"github.com/streadway/amqp"
 )
 
 func StartLogs() {
 
-	logs := make(chan string)
+	lineChan := make(chan string)
 
-	t, err := tail.TailFile("./logs.txt", tail.Config{Follow: true})
-	if err != nil {
-		log.Println("Error tailing log", err)
-	}
-
-	go readLog(t, logs)
-	go handleLog(logs)
-}
-
-func readLog(t *tail.Tail, logs chan string) {
-
-	for line := range t.Lines {
-		logs<- line.Text
-	}
-}
-
-func handleLog(logs chan string) {
-
-	for log := range logs {
-		fmt.Println(log)
-		strArray := strings.Split(<-logs, " ")
-		if strArray[0] == "ETH" {
-
-		} else if strArray[0] == "ETH:" {
-
+	go func() {
+		t, err := tail.TailFile(
+			"./logs.txt", tail.Config{Follow: true})
+		if err != nil {
+			log.Println("Error tailing log", err)
 		}
-	}
+		for line := range t.Lines {
+			fmt.Println(line.Text)
+			lineChan<- line.Text
+		}
+	}()
+
+	go func() {
+		conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
+		failOnError(err, "Failed to connect to RabbitMQ")
+		defer conn.Close()
+
+		ch, err := conn.Channel()
+		failOnError(err, "Failed to open a channel")
+		defer ch.Close()
+
+		q, err := ch.QueueDeclare(
+			"logs",
+			false,
+			false,
+			false,
+			false,
+			nil,
+		)
+		failOnError(err, "Failed to declare a queue")
+
+		for {
+			message := NewMessage("1", "logs",  <-lineChan)
+			body, _ := json.Marshal(message)
+			err = ch.Publish(
+				"",
+				q.Name,
+				false,
+				false,
+				amqp.Publishing{
+					ContentType: "text/plain",
+					Body:        []byte(body),
+				})
+			log.Printf(" [x] Sent %s", body)
+			failOnError(err, "Failed to publish a message")
+		}
+	}()
 }
