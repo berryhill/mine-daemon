@@ -1,6 +1,6 @@
 # Mine Daemon
 
-## Up Daemon with mock mine
+## Up daemon with mock mine
 
 In one terminal window, start the mine daemon
 ```
