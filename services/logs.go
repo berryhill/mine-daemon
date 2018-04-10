@@ -9,7 +9,7 @@ import (
 	"github.com/streadway/amqp"
 )
 
-func StartLogs() {
+func StartLogs(url, id string) {
 
 	lineChan := make(chan string)
 
@@ -26,7 +26,7 @@ func StartLogs() {
 	}()
 
 	go func() {
-		conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
+		conn, err := amqp.Dial(url)
 		failOnError(err, "Failed to connect to RabbitMQ")
 		defer conn.Close()
 
@@ -45,7 +45,7 @@ func StartLogs() {
 		failOnError(err, "Failed to declare a queue")
 
 		for {
-			message := NewMessage("1", "logs",  <-lineChan)
+			message := NewMessage(id, "logs",  <-lineChan)
 			body, _ := json.Marshal(message)
 			err = ch.Publish(
 				"",

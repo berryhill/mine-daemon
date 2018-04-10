@@ -24,7 +24,7 @@ func main () {
 	fmt.Println(*addr)
 
 	services.StartPing(*addr, id)
-	services.StartLogs()
+	services.StartLogs(*addr, id)
 
 	fmt.Println("Up and running")
 
